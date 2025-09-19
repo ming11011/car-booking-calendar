@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Car Booking</title>
+  <link href="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.8/index.global.min.css" rel="stylesheet" />
+  <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.8/index.global.min.js"></script>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <h2 id="booking-date" style="margin-bottom: 50px;"></h2>
+  <div id="calendar" style="max-width: 900px; margin: 20px auto;"></div> <br>
+
+  <h1>Available Cars</h1>
+  <div id="car-list">Loading...</div>
+
+  <h2>Add New Car</h2>
+  <form id="add-car-form">
+    <input type="text" id="plate_number" placeholder="Plate Number" required  disabled/>
+    <input type="file" id="car_image" accept="image/*" required disabled/>
+    <button type="submit" disabled>Add Car</button>
+  </form>
+
+<script>
+const SUPABASE_URL = "https://xcjlaslsrmuyfzfuswqj.supabase.co";
+const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inhjamxhc2xzcm11eWZ6ZnVzd3FqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTgxOTg5MjIsImV4cCI6MjA3Mzc3NDkyMn0.s-eD3cMxP5_9Bi8vXz_6JafQW6jT4Kh7zYppTeG9OUg";
+
+
+let calendar; // 全局 calendar 实例
+
+// 取消按日期预约
+async function cancelBookingByDate(bookingId) {
+  try {
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/car_bookings?id=eq.${bookingId}`, {
+      method: "DELETE",
+      headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}` }
+    });
+    if (!res.ok) throw new Error("Failed to cancel booking");
+
+    alert("Booking cancelled successfully !");
+    renderUnifiedCalendar(); // 刷新日历和列表
+  } catch (err) {
+    alert("Error cancelling booking: " + err.message);
+    console.error(err);
+  }
+}
+
+// 渲染统一日历
+async function renderUnifiedCalendar() {
+  try {
+    const carsRes = await fetch(`${SUPABASE_URL}/rest/v1/cars`, {
+      headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}` }
+    });
+    const cars = await carsRes.json();
+
+    const bookingsRes = await fetch(`${SUPABASE_URL}/rest/v1/car_bookings?select=*,cars(plate_number)`, {
+      headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}` }
+    });
+    const bookings = await bookingsRes.json();
+
+    const events = [];
+    const tomorrowStr = (() => { const d = new Date(); d.setDate(d.getDate()+1); return d.toISOString().split("T")[0]; })();
+
+    // 明天预约
+    cars.filter(car => car.status === "Booked").forEach(car => {
+      events.push({
+        id: `car-${car.id}`,
+        title: `${car.plate_number} (${car.booked_by})`,
+        start: tomorrowStr,
+        allDay: true,
+        backgroundColor: "#FF6A00",
+        borderColor: "#FF6A00",
+        type: "tomorrow"
+      });
+    });
+
+    // 按日期预约
+    bookings.forEach(booking => {
+      if (!(booking.booking_date === tomorrowStr && cars.find(c => c.id===booking.car_id && c.status==="Booked"))) {
+        events.push({
+          id: `booking-${booking.id}`,
+          title: `${booking.cars.plate_number} (${booking.booked_by})`,
+          start: booking.booking_date,
+          allDay: true,
+          backgroundColor: booking.status === "upcoming" ? "#FF6A00" : "#FFA500",
+          borderColor: booking.status === "upcoming" ? "#FF6A00" : "#FFA500",
+          type: "booking",
+          bookingId: booking.id
+        });
+      }
+    });
+
+    const calendarEl = document.getElementById("calendar");
+    if (!calendar) {
+      calendar = new FullCalendar.Calendar(calendarEl, {
+        initialView: 'dayGridMonth',
+        height: 400,
+        events: events,
+        eventClick: async info => {
+          const { type, bookingId, title } = info.event.extendedProps;
+          if (type === "booking") {
+            const confirmCancel = confirm(`Do you want to cancel this booking ?`);
+            if (confirmCancel) await cancelBookingByDate(bookingId);
+          } else {
+            alert(`Booked Car:\n${title}`);
+          }
+        },
+        eventDidMount: info => {
+          info.el.style.fontWeight = "bold";
+          info.el.style.padding = "5px";
+          info.el.style.marginBottom = "3px";
+          info.el.style.borderRadius = "8px";
+          info.el.style.color = "white";
+          info.el.style.textAlign = "center";
+          info.el.style.overflowWrap = "break-word";
+        }
+      });
+      calendar.render();
+    } else {
+      calendar.removeAllEvents();
+      events.forEach(ev => calendar.addEvent(ev));
+    }
+
+    renderCars(cars);
+
+  } catch (error) {
+    console.error("Error rendering unified calendar:", error);
+  }
+}
+
+// 初次加载
+renderUnifiedCalendar();
+
+
+// 渲染车辆列表
+function renderCars(cars) {
+  const container = document.getElementById("car-list");
+  container.innerHTML = cars.map(car => `
+    <div id="car_listbox">
+      <img src="${car.image_url}" />
+      <h3>${car.plate_number}</h3>
+      <p>Status: <span style="color: ${car.status === 'Available' ? '#52AB63' : '#9E5E4D'};font-weight:bold;">${car.status}</span></p>
+      <p>Booked By: ${car.booked_by || " "}</p>
+
+      ${car.status === "Available" ? `
+        <div class="inputGroup">
+          <input type="text" id="name-${car.id}" placeholder="Enter your name" autocomplete="off" required>
+          <button class="book-btn" onclick="bookCar(${car.id})">Book</button>
+        </div>
+      ` : `
+        <div class="inputGroup">
+          <input type="text" id="replace-${car.id}" placeholder="New user name" required/>
+          <button class="violet-btn" onclick="replaceBooking(${car.id})">Replace Booking</button>
+          <button class="btn_cancel" onclick="cancelBooking(${car.id})">Cancel</button>
+        </div>
+      `}
+
+      <br><hr>
+      <div class="inputGroup2">
+        <input type="text" id="name-date-${car.id}" placeholder="Enter your name" autocomplete="off" style="width:200px" required/>
+        <input type="date" id="date-${car.id}" required/>
+        <button class="book-btn" onclick="bookCarByDate(${car.id})" style=" background-color:#A1571B">Book</button>
+      </div>
+    </div>
+  `).join("");
+}
+
+// ------------------ 预约操作 ------------------
+async function bookCar(carId) {
+  const nameInput = document.getElementById(`name-${carId}`);
+  const userName = nameInput.value.trim();
+  if (!userName) { alert("Please enter your name before booking !"); return; }
+
+  await fetch(`${SUPABASE_URL}/rest/v1/cars?id=eq.${carId}`, {
+    method: "PATCH",
+    headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}`, "Content-Type": "application/json" },
+    body: JSON.stringify({ status: "Booked", booked_by: userName })
+  });
+  alert(`Car booked successfully by ${userName} !`);
+  renderUnifiedCalendar();
+}
+
+async function replaceBooking(carId) {
+  const newName = document.getElementById(`replace-${carId}`).value.trim();
+  if (!newName) { alert("Please enter a new name to replace booking !"); return; }
+
+  await fetch(`${SUPABASE_URL}/rest/v1/cars?id=eq.${carId}`, {
+    method: "PATCH",
+    headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}`, "Content-Type": "application/json" },
+    body: JSON.stringify({ status: "Booked", booked_by: newName })
+  });
+  alert(`Booking replaced successfully! Now booked by ${newName}`);
+  renderUnifiedCalendar();
+}
+
+async function cancelBooking(carId) {
+  await fetch(`${SUPABASE_URL}/rest/v1/cars?id=eq.${carId}`, {
+    method: "PATCH",
+    headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}`, "Content-Type": "application/json" },
+    body: JSON.stringify({ status: "Available", booked_by: null })
+  });
+  alert("Booking cancelled. Car is now available.");
+  renderUnifiedCalendar();
+}
+
+// 按日期预约
+async function bookCarByDate(carId) {
+  const nameInput = document.getElementById(`name-date-${carId}`).value.trim();
+  const dateInput = document.getElementById(`date-${carId}`).value;
+  if (!nameInput || !dateInput) { alert("Please enter your name and select a date !"); return; }
+
+  // 1️⃣ 先检查这个车在选的日期是否已经预约过
+  const checkRes = await fetch(`${SUPABASE_URL}/rest/v1/car_bookings?car_id=eq.${carId}&booking_date=eq.${dateInput}`, {
+    headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}` }
+  });
+  const existing = await checkRes.json();
+
+  if (existing.length > 0) {
+    alert(`This car is already booked on ${dateInput}. Please choose another date.`);
+    return; // 不允许重复预约
+  }
+
+  // 2️⃣ 如果没有重复，继续添加预约
+  await fetch(`${SUPABASE_URL}/rest/v1/car_bookings`, {
+    method: "POST",
+    headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}`, "Content-Type": "application/json", Prefer: "return=minimal" },
+    body: JSON.stringify({ car_id: carId, booked_by: nameInput, booking_date: dateInput, status: "upcoming" })
+  });
+
+  alert(`Car booked successfully by ${nameInput} for ${dateInput} !`);
+  renderUnifiedCalendar();
+}
+
+// ------------------ 新增车辆 ------------------
+document.getElementById("add-car-form").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const plateNumber = document.getElementById("plate_number").value;
+  const file = document.getElementById("car_image").files[0];
+  if (!file) { alert("Please select an image"); return; }
+
+  const fileName = `${Date.now()}_${file.name}`;
+  const uploadRes = await fetch(`${SUPABASE_URL}/storage/v1/object/cars/${fileName}`, {
+    method: "POST",
+    headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}`, "Content-Type": file.type },
+    body: file
+  });
+  if (!uploadRes.ok) { alert("Upload failed: " + uploadRes.statusText); return; }
+
+  const imageUrl = `${SUPABASE_URL}/storage/v1/object/public/cars/${fileName}`;
+  await fetch(`${SUPABASE_URL}/rest/v1/cars`, {
+    method: "POST",
+    headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}`, "Content-Type": "application/json", Prefer: "return=minimal" },
+    body: JSON.stringify({ plate_number: plateNumber, image_url: imageUrl, status: "Available", booked_by: null })
+  });
+
+  alert("Car added successfully !");
+  document.getElementById("add-car-form").reset();
+  renderUnifiedCalendar();
+});
+
+// ------------------ 初始化 ------------------
+function getTomorrowDate() {
+  const today = new Date();
+  today.setDate(today.getDate() + 1);
+  const day = today.getDate(), month = today.getMonth() + 1, year = today.getFullYear() % 100;
+  const weekDays = ["星期日","星期一","星期二","星期三","星期四","星期五","星期六"];
+  return `${day} / ${month} / ${year} (${weekDays[today.getDay()]})`;
+}
+
+document.getElementById("booking-date").innerHTML = `Booking for : <span style="color:#E35D00;">${getTomorrowDate()}</span>`;
+
+
+
+
+// 初次渲染
+renderUnifiedCalendar();
+
+
+
+
+</script>
+</body>
+</html>
