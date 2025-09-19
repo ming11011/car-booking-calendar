@@ -6,7 +6,8 @@
   <link href="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.8/index.global.min.css" rel="stylesheet" />
   <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.8/index.global.min.js"></script>
   <link rel="stylesheet" href="style.css">
-    <style>
+  <style>
+
     #login-box {
       margin-top: 100px;
     }
@@ -14,7 +15,7 @@
       padding: 10px;
       font-size: 16px;
     }
-    button {
+    #log-btn {
       padding: 10px 15px;
       font-size: 16px;
       cursor: pointer;
@@ -29,7 +30,7 @@
   <div id="login-box">
     <h2>Enter Password to Access</h2>
     <input type="password" id="password" placeholder="Password">
-    <button onclick="checkPassword()">Enter</button>
+    <button id="log-btn" onclick="checkPassword()">Enter</button>
   </div>
 
 <div id="content" style="display:none;">
@@ -60,6 +61,8 @@
       if (input === correctPassword) {
         document.getElementById("login-box").style.display = "none";
         document.getElementById("content").style.display = "block";
+        // 等容器显示后再初始化日历
+        renderUnifiedCalendar();
       } else {
         alert("Incorrect password! Please try again.");
       }
