@@ -8,6 +8,15 @@
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
+  <div id="login-box">
+    <h2>Enter Password to Access</h2>
+    <input type="password" id="password" placeholder="Password">
+    <button onclick="checkPassword()">Enter</button>
+  </div>
+
+<div id="content" style="display:none;">
+   
+ 
   <h2 id="booking-date" style="margin-bottom: 50px;"></h2>
   <div id="calendar" style="max-width: 900px; margin: 20px auto;"></div> <br>
 
@@ -21,7 +30,25 @@
     <button type="submit" disabled>Add Car</button>
   </form>
 
+</div>
+
+
+    
 <script>
+    const correctPassword = "313839"; // 你可以改成自己想要的密码
+
+    function checkPassword() {
+      const input = document.getElementById("password").value;
+      if (input === correctPassword) {
+        document.getElementById("login-box").style.display = "none";
+        document.getElementById("content").style.display = "block";
+      } else {
+        alert("Incorrect password! Please try again.");
+      }
+    }
+
+  
+
 const SUPABASE_URL = "https://xcjlaslsrmuyfzfuswqj.supabase.co";
 const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inhjamxhc2xzcm11eWZ6ZnVzd3FqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTgxOTg5MjIsImV4cCI6MjA3Mzc3NDkyMn0.s-eD3cMxP5_9Bi8vXz_6JafQW6jT4Kh7zYppTeG9OUg";
 
